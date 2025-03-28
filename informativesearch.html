@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InformativeUs!</title>
-    <!-- Add Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -51,20 +50,15 @@
 <body>
     <img src="Informativeus-logo.png" height="200">
     
-    <!-- Search Bar -->
     <div id="search-container">
         <input type="text" id="search-bar" placeholder="Search businesses...">
         <button id="search-button">Search</button>
     </div>
     
-    <!-- Main Display Area -->
     <div id="display-area">
-        <!-- Content will be shown here based on button clicks -->
         <div id="search-results">
             <h2>Search Results</h2>
-            <div id="business-list">
-                <!-- Business cards will appear here -->
-            </div>
+            <div id="business-list"></div>
         </div>
         
         <div id="business-details" class="hidden">
@@ -107,7 +101,6 @@
         </div>
     </div>
     
-    <!-- Action Buttons -->
     <div class="button-row">
         <button id="show-search">Search Businesses</button>
         <button id="show-login">Login</button>
@@ -116,17 +109,15 @@
     </div>
 
     <script>
-        // Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCUuPn8g8CLxegUxuV1MXs1DKSQIzh-Za4",
             authDomain: "informativeus.firebaseapp.com",
             projectId: "informativeus",
             storageBucket: "informativeus.firebasestorage.app",
             messagingSenderId: "465252767383",
-            appId: "1:465252767383:web:cee5e7657d73ff45fd7bd2",
+            appId: "1:465252767383:web:cee5e7657d73ff45fd7bd2"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -138,7 +129,6 @@
         
         let currentUser = null;
         
-        // DOM elements
         const displayArea = document.getElementById('display-area');
         const searchResults = document.getElementById('search-results');
         const businessDetails = document.getElementById('business-details');
@@ -147,7 +137,6 @@
         const addBusinessPage = document.getElementById('add-business-page');
         const businessList = document.getElementById('business-list');
         
-        // Buttons
         const showSearchBtn = document.getElementById('show-search');
         const showLoginBtn = document.getElementById('show-login');
         const showRegisterBtn = document.getElementById('show-register');
@@ -155,12 +144,10 @@
         const backButton = document.getElementById('back-button');
         const searchButton = document.getElementById('search-button');
         
-        // Forms
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         const businessForm = document.getElementById('business-form');
         
-        // Initialize
         function init() {
             auth.onAuthStateChanged(user => {
                 if (user) {
@@ -169,8 +156,10 @@
                         email: user.email,
                         name: user.displayName || user.email.split('@')[0]
                     };
+                    console.log("User logged in:", currentUser.email);
                 } else {
                     currentUser = null;
+                    console.log("User logged out");
                 }
             });
             
@@ -196,8 +185,8 @@
             businessForm.addEventListener('submit', handleAddBusiness);
         }
         
-        // UPDATED LOGIN FUNCTION (ONLY THIS SECTION CHANGED)
-        function handleLogin(e) {
+        // FIXED LOGIN FUNCTION
+        async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value.trim();
@@ -207,44 +196,54 @@
                 return;
             }
             
+            if (!/^\S+@\S+\.\S+$/.test(email)) {
+                alert("Please enter a valid email address");
+                return;
+            }
+            
+            if (password.length < 6) {
+                alert("Password must be at least 6 characters");
+                return;
+            }
+
             const loginBtn = loginForm.querySelector('button[type="submit"]');
             loginBtn.disabled = true;
             loginBtn.textContent = "Logging in...";
-            
-            auth.signInWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    loginForm.reset();
-                    currentUser = {
-                        uid: userCredential.user.uid,
-                        email: userCredential.user.email,
-                        name: userCredential.user.displayName || userCredential.user.email.split('@')[0]
-                    };
-                    alert("Login successful!");
-                    showPage('search');
-                })
-                .catch((error) => {
-                    console.error("Login error:", error);
-                    let errorMessage = "Login failed. ";
-                    
-                    if (error.code === "auth/wrong-password") {
-                        errorMessage += "Incorrect password.";
-                    } else if (error.code === "auth/user-not-found") {
-                        errorMessage += "No user found with this email.";
-                    } else if (error.code === "auth/invalid-email") {
-                        errorMessage += "Invalid email format.";
-                    } else {
-                        errorMessage += error.message;
-                    }
-                    
-                    alert(errorMessage);
-                })
-                .finally(() => {
-                    loginBtn.disabled = false;
-                    loginBtn.textContent = "Login";
-                });
+
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                
+                loginForm.reset();
+                currentUser = {
+                    uid: userCredential.user.uid,
+                    email: userCredential.user.email,
+                    name: userCredential.user.displayName || userCredential.user.email.split('@')[0]
+                };
+                alert("Login successful!");
+                showPage('search');
+            } catch (error) {
+                console.error("Login error:", error);
+                
+                let errorMessage = "Login failed. ";
+                if (error.code === 'auth/wrong-password') {
+                    errorMessage = "Incorrect password. Please try again.";
+                } else if (error.code === 'auth/user-not-found') {
+                    errorMessage = "No account found with this email. Please register first.";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "Invalid email format. Please enter a valid email.";
+                } else if (error.code === 'auth/too-many-requests') {
+                    errorMessage = "Too many login attempts. Please try again later.";
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                alert(errorMessage);
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = "Login";
+            }
         }
 
-        // REST OF YOUR ORIGINAL FUNCTIONS REMAIN EXACTLY THE SAME
         function loadBusinesses() {
             db.collection("businesses").get().then((querySnapshot) => {
                 const businesses = [];
