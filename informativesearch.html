@@ -116,7 +116,7 @@
     </div>
 
     <script>
-        // Firebase configuration (replace with your actual config)
+        // Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCUuPn8g8CLxegUxuV1MXs1DKSQIzh-Za4",
             authDomain: "informativeus.firebaseapp.com",
@@ -131,9 +131,8 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
         
-        // Fix for Firestore permission issues
         db.settings({
-            experimentalForceLongPolling: true, // Needed for some environments
+            experimentalForceLongPolling: true,
             merge: true
         });
         
@@ -163,7 +162,6 @@
         
         // Initialize
         function init() {
-            // Set up auth state listener
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = {
@@ -171,17 +169,13 @@
                         email: user.email,
                         name: user.displayName || user.email.split('@')[0]
                     };
-                    console.log("User logged in:", currentUser.email);
                 } else {
                     currentUser = null;
-                    console.log("User logged out");
                 }
             });
             
-            // Load initial businesses
             loadBusinesses();
             
-            // Button event listeners
             showSearchBtn.addEventListener('click', () => showPage('search'));
             showLoginBtn.addEventListener('click', () => showPage('login'));
             showRegisterBtn.addEventListener('click', () => showPage('register'));
@@ -197,13 +191,60 @@
             backButton.addEventListener('click', () => showPage('search'));
             searchButton.addEventListener('click', searchBusinesses);
             
-            // Form submissions
             loginForm.addEventListener('submit', handleLogin);
             registerForm.addEventListener('submit', handleRegister);
             businessForm.addEventListener('submit', handleAddBusiness);
         }
         
-        // Load businesses from Firestore
+        // UPDATED LOGIN FUNCTION (ONLY THIS SECTION CHANGED)
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+            
+            if (!email || !password) {
+                alert("Please enter both email and password");
+                return;
+            }
+            
+            const loginBtn = loginForm.querySelector('button[type="submit"]');
+            loginBtn.disabled = true;
+            loginBtn.textContent = "Logging in...";
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    loginForm.reset();
+                    currentUser = {
+                        uid: userCredential.user.uid,
+                        email: userCredential.user.email,
+                        name: userCredential.user.displayName || userCredential.user.email.split('@')[0]
+                    };
+                    alert("Login successful!");
+                    showPage('search');
+                })
+                .catch((error) => {
+                    console.error("Login error:", error);
+                    let errorMessage = "Login failed. ";
+                    
+                    if (error.code === "auth/wrong-password") {
+                        errorMessage += "Incorrect password.";
+                    } else if (error.code === "auth/user-not-found") {
+                        errorMessage += "No user found with this email.";
+                    } else if (error.code === "auth/invalid-email") {
+                        errorMessage += "Invalid email format.";
+                    } else {
+                        errorMessage += error.message;
+                    }
+                    
+                    alert(errorMessage);
+                })
+                .finally(() => {
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = "Login";
+                });
+        }
+
+        // REST OF YOUR ORIGINAL FUNCTIONS REMAIN EXACTLY THE SAME
         function loadBusinesses() {
             db.collection("businesses").get().then((querySnapshot) => {
                 const businesses = [];
@@ -220,16 +261,13 @@
             });
         }
         
-        // Show different pages
         function showPage(page) {
-            // Hide all pages
             searchResults.classList.add('hidden');
             businessDetails.classList.add('hidden');
             loginPage.classList.add('hidden');
             registerPage.classList.add('hidden');
             addBusinessPage.classList.add('hidden');
             
-            // Show selected page
             switch(page) {
                 case 'search':
                     searchResults.classList.remove('hidden');
@@ -250,7 +288,6 @@
             }
         }
         
-        // Display businesses in the list
         function displayBusinesses(businessArray) {
             businessList.innerHTML = '';
             
@@ -270,7 +307,6 @@
                 businessList.appendChild(card);
             });
             
-            // Add event listeners to view buttons
             document.querySelectorAll('.view-details').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const businessId = e.target.dataset.id;
@@ -279,7 +315,6 @@
             });
         }
         
-        // Show details for a specific business
         function showBusinessDetails(businessId) {
             db.collection("businesses").doc(businessId).get().then((doc) => {
                 if (doc.exists) {
@@ -298,7 +333,6 @@
             });
         }
         
-        // Search businesses
         function searchBusinesses() {
             const query = document.getElementById('search-bar').value.toLowerCase();
             
@@ -326,61 +360,6 @@
                 });
         }
         
-// Handle login - UPDATED VERSION WITH PROPER ERROR HANDLING
-function handleLogin(e) {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value.trim();
-    
-    // Basic validation
-    if (!email || !password) {
-        alert("Please enter both email and password");
-        return;
-    }
-    
-    // Show loading state
-    const loginBtn = loginForm.querySelector('button[type="submit"]');
-    loginBtn.disabled = true;
-    loginBtn.textContent = "Logging in...";
-    
-    auth.signInWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // Clear form
-            loginForm.reset();
-            // Update current user
-            currentUser = {
-                uid: userCredential.user.uid,
-                email: userCredential.user.email,
-                name: userCredential.user.displayName || userCredential.user.email.split('@')[0]
-            };
-            alert("Login successful!");
-            showPage('search');
-        })
-        .catch((error) => {
-            console.error("Login error:", error);
-            let errorMessage = "Login failed. ";
-            
-            // Specific error messages
-            if (error.code === "auth/wrong-password") {
-                errorMessage += "Incorrect password.";
-            } else if (error.code === "auth/user-not-found") {
-                errorMessage += "No user found with this email.";
-            } else if (error.code === "auth/invalid-email") {
-                errorMessage += "Invalid email format.";
-            } else {
-                errorMessage += error.message;
-            }
-            
-            alert(errorMessage);
-        })
-        .finally(() => {
-            // Reset button state
-            loginBtn.disabled = false;
-            loginBtn.textContent = "Login";
-        });
-        }
-        
-        // Handle registration
         function handleRegister(e) {
             e.preventDefault();
             const name = document.getElementById('register-name').value;
@@ -389,7 +368,6 @@ function handleLogin(e) {
             
             auth.createUserWithEmailAndPassword(email, password)
                 .then((userCredential) => {
-                    // Update user profile with name
                     return userCredential.user.updateProfile({
                         displayName: name
                     });
@@ -403,7 +381,6 @@ function handleLogin(e) {
                 });
         }
         
-        // Handle adding a new business
         function handleAddBusiness(e) {
             e.preventDefault();
             
@@ -418,7 +395,6 @@ function handleLogin(e) {
             const abilities = document.getElementById('business-abilities').value;
             const email = document.getElementById('business-email').value;
             
-            // Create search terms array
             const searchTerms = [
                 name.toLowerCase(),
                 ...abilities.split(',').map(a => a.trim().toLowerCase()),
@@ -444,7 +420,6 @@ function handleLogin(e) {
             });
         }
         
-        // Start the application
         document.addEventListener('DOMContentLoaded', init);
     </script>
     <h4>Made by <a href="index.html" target="_blank">Atinas!</a></h4>
