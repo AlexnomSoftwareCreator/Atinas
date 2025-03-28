@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InformativeUs!</title>
+    <!-- Add Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #search-container {
+            margin-bottom: 20px;
+        }
+        #search-bar {
+            width: 70%;
+            padding: 8px;
+        }
+        #search-button {
+            padding: 8px 15px;
+        }
+        #display-area {
+            border: 1px solid #ccc;
+            min-height: 400px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+        }
+        .button-row button {
+            padding: 10px 15px;
+        }
+        .business-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <img src="Informativeus-logo.png" height="200">
+    
+    <!-- Search Bar -->
+    <div id="search-container">
+        <input type="text" id="search-bar" placeholder="Search businesses...">
+        <button id="search-button">Search</button>
+    </div>
+    
+    <!-- Main Display Area -->
+    <div id="display-area">
+        <!-- Content will be shown here based on button clicks -->
+        <div id="search-results">
+            <h2>Search Results</h2>
+            <div id="business-list">
+                <!-- Business cards will appear here -->
+            </div>
+        </div>
+        
+        <div id="business-details" class="hidden">
+            <h2 id="detail-name">Business Name</h2>
+            <p><strong>Info:</strong> <span id="detail-info"></span></p>
+            <p><strong>Services:</strong> <span id="detail-abilities"></span></p>
+            <p><strong>Contact:</strong> <span id="detail-contact"></span></p>
+            <button id="back-button">Back to Results</button>
+        </div>
+        
+        <div id="login-page" class="hidden">
+            <h2>Login</h2>
+            <form id="login-form">
+                <p>Email: <input type="text" id="login-email"></p>
+                <p>Password: <input type="password" id="login-password"></p>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+        
+        <div id="register-page" class="hidden">
+            <h2>Register Account</h2>
+            <form id="register-form">
+                <p>Name: <input type="text" id="register-name"></p>
+                <p>Email: <input type="text" id="register-email"></p>
+                <p>Password: <input type="password" id="register-password"></p>
+                <button type="submit">Register</button>
+            </form>
+        </div>
+        
+        <div id="add-business-page" class="hidden">
+            <h2>Register a Business</h2>
+            <form id="business-form">
+                <p>Business Name: <input type="text" id="business-name"></p>
+                <p>Description: <textarea id="business-info"></textarea></p>
+                <p>Services (comma separated): <input type="text" id="business-abilities"></p>
+                <p>Contact Email: <input type="text" id="business-email"></p>
+                <button type="submit">Submit Business</button>
+                <h4>*Any Business Registering Abuse Is Not Tolerated*</h4>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="button-row">
+        <button id="show-search">Search Businesses</button>
+        <button id="show-login">Login</button>
+        <button id="show-register">Register Account</button>
+        <button id="show-add-business">Register Business</button>
+    </div>
+
+    <script>
+        // Firebase configuration (replace with your actual config)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUuPn8g8CLxegUxuV1MXs1DKSQIzh-Za4",
+  authDomain: "informativeus.firebaseapp.com",
+  projectId: "informativeus",
+  storageBucket: "informativeus.firebasestorage.app",
+  messagingSenderId: "465252767383",
+  appId: "1:465252767383:web:cee5e7657d73ff45fd7bd2",
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // Fix for Firestore permission issues
+        db.settings({
+            experimentalForceLongPolling: true, // Needed for some environments
+            merge: true
+        });
+        
+        let currentUser = null;
+        
+        // DOM elements
+        const displayArea = document.getElementById('display-area');
+        const searchResults = document.getElementById('search-results');
+        const businessDetails = document.getElementById('business-details');
+        const loginPage = document.getElementById('login-page');
+        const registerPage = document.getElementById('register-page');
+        const addBusinessPage = document.getElementById('add-business-page');
+        const businessList = document.getElementById('business-list');
+        
+        // Buttons
+        const showSearchBtn = document.getElementById('show-search');
+        const showLoginBtn = document.getElementById('show-login');
+        const showRegisterBtn = document.getElementById('show-register');
+        const showAddBusinessBtn = document.getElementById('show-add-business');
+        const backButton = document.getElementById('back-button');
+        const searchButton = document.getElementById('search-button');
+        
+        // Forms
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const businessForm = document.getElementById('business-form');
+        
+        // Initialize
+        function init() {
+            // Set up auth state listener
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = {
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email.split('@')[0]
+                    };
+                } else {
+                    currentUser = null;
+                }
+            });
+            
+            // Load initial businesses
+            loadBusinesses();
+            
+            // Button event listeners
+            showSearchBtn.addEventListener('click', () => showPage('search'));
+            showLoginBtn.addEventListener('click', () => showPage('login'));
+            showRegisterBtn.addEventListener('click', () => showPage('register'));
+            showAddBusinessBtn.addEventListener('click', () => {
+                if (currentUser) {
+                    showPage('add-business');
+                } else {
+                    alert("Please login first");
+                    showPage('login');
+                }
+            });
+            
+            backButton.addEventListener('click', () => showPage('search'));
+            searchButton.addEventListener('click', searchBusinesses);
+            
+            // Form submissions
+            loginForm.addEventListener('submit', handleLogin);
+            registerForm.addEventListener('submit', handleRegister);
+            businessForm.addEventListener('submit', handleAddBusiness);
+        }
+        
+        // Load businesses from Firestore
+        function loadBusinesses() {
+            db.collection("businesses").get().then((querySnapshot) => {
+                const businesses = [];
+                querySnapshot.forEach((doc) => {
+                    businesses.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                displayBusinesses(businesses);
+            }).catch((error) => {
+                console.error("Error loading businesses: ", error);
+                businessList.innerHTML = '<p>Error loading businesses. Please check your Firestore permissions.</p>';
+            });
+        }
+        
+        // Show different pages
+        function showPage(page) {
+            // Hide all pages
+            searchResults.classList.add('hidden');
+            businessDetails.classList.add('hidden');
+            loginPage.classList.add('hidden');
+            registerPage.classList.add('hidden');
+            addBusinessPage.classList.add('hidden');
+            
+            // Show selected page
+            switch(page) {
+                case 'search':
+                    searchResults.classList.remove('hidden');
+                    loadBusinesses();
+                    break;
+                case 'details':
+                    businessDetails.classList.remove('hidden');
+                    break;
+                case 'login':
+                    loginPage.classList.remove('hidden');
+                    break;
+                case 'register':
+                    registerPage.classList.remove('hidden');
+                    break;
+                case 'add-business':
+                    addBusinessPage.classList.remove('hidden');
+                    break;
+            }
+        }
+        
+        // Display businesses in the list
+        function displayBusinesses(businessArray) {
+            businessList.innerHTML = '';
+            
+            if (businessArray.length === 0) {
+                businessList.innerHTML = '<p>Your Search Was Not Valid, Or Nothing Was Found.</p>';
+                return;
+            }
+            
+            businessArray.forEach(business => {
+                const card = document.createElement('div');
+                card.className = 'business-card';
+                card.innerHTML = `
+                    <h3>${business.name}</h3>
+                    <p>${business.info}</p>
+                    <button class="view-details" data-id="${business.id}">View Details</button>
+                `;
+                businessList.appendChild(card);
+            });
+            
+            // Add event listeners to view buttons
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const businessId = e.target.dataset.id;
+                    showBusinessDetails(businessId);
+                });
+            });
+        }
+        
+        // Show details for a specific business
+        function showBusinessDetails(businessId) {
+            db.collection("businesses").doc(businessId).get().then((doc) => {
+                if (doc.exists) {
+                    const business = doc.data();
+                    document.getElementById('detail-name').textContent = business.name;
+                    document.getElementById('detail-info').textContent = business.info;
+                    document.getElementById('detail-abilities').textContent = business.abilities;
+                    document.getElementById('detail-contact').textContent = business.contact;
+                    showPage('details');
+                } else {
+                    alert("Business not found");
+                }
+            }).catch((error) => {
+                console.error("Error getting business: ", error);
+                alert("Error loading business details");
+            });
+        }
+        
+        // Search businesses
+        function searchBusinesses() {
+            const query = document.getElementById('search-bar').value.toLowerCase();
+            
+            if (query === '') {
+                loadBusinesses();
+                return;
+            }
+            
+            db.collection("businesses")
+                .where("searchTerms", "array-contains", query)
+                .get()
+                .then((querySnapshot) => {
+                    const results = [];
+                    querySnapshot.forEach((doc) => {
+                        results.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    displayBusinesses(results);
+                })
+                .catch((error) => {
+                    console.error("Error searching businesses: ", error);
+                    businessList.innerHTML = '<p>Error searching businesses</p>';
+                });
+        }
+        
+        // Handle login
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    alert("Login successful!");
+                    showPage('search');
+                })
+                .catch((error) => {
+                    alert("Login error: " + error.message);
+                });
+        }
+        
+        // Handle registration
+        function handleRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Update user profile with name
+                    return userCredential.user.updateProfile({
+                        displayName: name
+                    });
+                })
+                .then(() => {
+                    alert("Registration successful! You are now logged in.");
+                    showPage('search');
+                })
+                .catch((error) => {
+                    alert("Registration error: " + error.message);
+                });
+        }
+        
+        // Handle adding a new business
+        function handleAddBusiness(e) {
+            e.preventDefault();
+            
+            if (!currentUser) {
+                alert("Please login first");
+                showPage('login');
+                return;
+            }
+            
+            const name = document.getElementById('business-name').value;
+            const info = document.getElementById('business-info').value;
+            const abilities = document.getElementById('business-abilities').value;
+            const email = document.getElementById('business-email').value;
+            
+            // Create search terms array
+            const searchTerms = [
+                name.toLowerCase(),
+                ...abilities.split(',').map(a => a.trim().toLowerCase()),
+                ...info.toLowerCase().split(/\s+/).filter(word => word.length > 3)
+            ];
+            
+            db.collection("businesses").add({
+                name: name,
+                info: info,
+                abilities: abilities,
+                contact: email,
+                searchTerms: searchTerms,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: currentUser.uid
+            })
+            .then(() => {
+                alert("Business registered successfully!");
+                showPage('search');
+            })
+            .catch((error) => {
+                console.error("Error adding business: ", error);
+                alert("Error registering business. Please check your Firestore permissions.");
+            });
+        }
+        
+        // Start the application
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <h4>Made by <a href="index.html" target="_blank">Atinas!</a></h4>
+    <h4>Beta 1.0.0</h4>
+    <button onclick="location.href='helpinformative.html';">Help?</button>
+</body>
+</html>
